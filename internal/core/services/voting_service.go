@@ -1,75 +1,63 @@
 package services
 
 import (
-	"sync"
-
 	"github.com/gorilla/websocket"
 	"github.com/samuelorlato/golang-electoral-system-api/internal/core/models"
 	"github.com/samuelorlato/golang-electoral-system-api/internal/core/ports"
 	"gopkg.in/validator.v2"
 )
 
-type votingService struct{}
-
-func NewVotingService() ports.VotingService {
-	return &votingService{}
+type votingService struct {
+	roomService ports.RoomService
 }
 
-var votes = make(map[int]int)
-var clients = make(map[*websocket.Conn]bool)
+func NewVotingService(roomService ports.RoomService) ports.VotingService {
+	return &votingService{
+		roomService: roomService,
+	}
+}
 
-var resultsConns []*websocket.Conn
-var resultsConnMutex sync.Mutex
-
-func (vs *votingService) HandleVote(conn *websocket.Conn) {
-	clients[conn] = true
+func (vs *votingService) HandleVote(conn *websocket.Conn, roomId string) {
+	vs.roomService.JoinAsVoter(conn, roomId)
 
 	go func() {
 		for {
 			var vote models.Vote
 			err := conn.ReadJSON(&vote)
 			if err != nil {
-				delete(clients, conn)
-				conn.Close()
-				break
+				vs.roomService.Leave(conn, roomId)
 			}
 
-			if len(resultsConns) > 0 {
-				if err := validator.Validate(vote); err != nil {
-					conn.WriteMessage(websocket.TextMessage, []byte("Invalid vote, probably invalid json format."))
-				} else {
-					votes[vote.Option]++
-					broadcastVoteCountToResults()
-				}
+			if err := validator.Validate(vote); err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid vote, probably invalid json format."))
 			} else {
-				conn.WriteMessage(websocket.TextMessage, []byte("Session is not open."))
+				vs.roomService.GetRoom(conn, roomId).Votes[vote.Option]++
+				vs.broadcastVoteCountToResults(conn, roomId)
 			}
 		}
 	}()
 }
 
-func broadcastVoteCountToResults() {
-	resultsConnMutex.Lock()
-	defer resultsConnMutex.Unlock()
+func (vs *votingService) broadcastVoteCountToResults(conn *websocket.Conn, roomId string) {
+	// vs.m.Lock()
+	// defer vs.m.Unlock()
 
-	for _, resultsConn := range resultsConns {
-		if resultsConn == nil {
-			return
-		}
+	room := vs.roomService.GetRoom(conn, roomId)
 
-		for option, count := range votes {
+	for conn := range room.Spectators {
+		for option, count := range room.Votes {
 			voteCount := models.VoteCount{Option: option, Count: count}
-			err := resultsConn.WriteJSON(voteCount)
+			err := conn.WriteJSON(voteCount)
 			if err != nil {
-				delete(clients, resultsConn)
-				resultsConn.Close()
+				vs.roomService.Leave(conn, roomId)
 			}
 		}
 	}
 }
 
-func (vs *votingService) SetResultsConnections(conn *websocket.Conn) {
-	resultsConnMutex.Lock()
-	defer resultsConnMutex.Unlock()
-	resultsConns = append(resultsConns, conn)
+func (vs *votingService) SetResultsConnections(conn *websocket.Conn, roomId string) {
+	// vs.m.Lock()
+	// defer vs.m.Unlock()
+
+	vs.roomService.JoinAsSpectator(conn, roomId)
 }

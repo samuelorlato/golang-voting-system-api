@@ -1,24 +1,23 @@
 package main
 
 import (
-	"log"
-	"net/http"
-
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/samuelorlato/golang-electoral-system-api/internal/core/services"
 	httphandler "github.com/samuelorlato/golang-electoral-system-api/internal/handlers/http"
 )
 
 func main() {
+	engine := gin.Default()
+
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
-	votingService := services.NewVotingService()
-	HTTPHandler := httphandler.NewHTTPHandler(&upgrader, votingService)
+	roomService := services.NewRoomService()
+	votingService := services.NewVotingService(roomService)
+	HTTPHandler := httphandler.NewHTTPHandler(&upgrader, roomService, votingService)
+	HTTPHandler.SetRoutes(engine)
 
-	http.HandleFunc("/vote", HTTPHandler.HandleVoteRequest)
-	http.HandleFunc("/results", HTTPHandler.HandleResultsRequest)
-
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	engine.Run()
 }

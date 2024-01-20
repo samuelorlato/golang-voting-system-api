@@ -1,8 +1,10 @@
 package ports
 
-import "github.com/gorilla/websocket"
+import (
+	"github.com/gorilla/websocket"
+)
 
 type VotingService interface {
-	HandleVote(*websocket.Conn)
-	SetResultsConnections(*websocket.Conn)
+	HandleVote(conn *websocket.Conn, roomId string)
+	SetResultsConnections(conn *websocket.Conn, roomId string)
 }
