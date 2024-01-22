@@ -5,6 +5,6 @@ import (
 )
 
 type VotingService interface {
-	HandleVote(conn *websocket.Conn, roomId string)
-	SetResultsConnections(conn *websocket.Conn, roomId string)
+	Vote(conn *websocket.Conn, roomId string)
+	Spectate(conn *websocket.Conn, roomId string)
 }

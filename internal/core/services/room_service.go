@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/samuelorlato/golang-electoral-system-api/internal/core/models"
@@ -10,6 +11,7 @@ import (
 
 type roomService struct {
 	rooms []*models.Room
+	sync.RWMutex
 }
 
 func NewRoomService() ports.RoomService {
@@ -20,7 +22,10 @@ func NewRoomService() ports.RoomService {
 
 func (r *roomService) CreateRoom(conn *websocket.Conn) string {
 	room := models.NewRoom()
+
+	r.Lock()
 	r.rooms = append(r.rooms, room)
+	r.Unlock()
 
 	conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Room ID: %s", room.Id)))
 
@@ -28,11 +33,13 @@ func (r *roomService) CreateRoom(conn *websocket.Conn) string {
 }
 
 func (r *roomService) DeleteRoom(room *models.Room, index int) {
+	r.Lock()
 	r.rooms[index] = r.rooms[len(r.rooms)-1]
 	r.rooms = r.rooms[:len(r.rooms)-1]
+	r.Unlock()
 }
 
-func (r *roomService) GetRoomIndex(conn *websocket.Conn, roomId string) int {
+func (r *roomService) GetRoomIndex(conn *websocket.Conn, roomId string) *int {
 	var roomIndex *int
 
 	for index, room := range r.rooms {
@@ -47,22 +54,13 @@ func (r *roomService) GetRoomIndex(conn *websocket.Conn, roomId string) int {
 		conn.Close()
 	}
 
-	return *roomIndex
+	return roomIndex
 }
 
 func (r *roomService) GetRoom(conn *websocket.Conn, roomId string) *models.Room {
-	var roomIndex *int
-
-	for index, room := range r.rooms {
-		if room.Id == roomId {
-			roomIndex = &index
-			break
-		}
-	}
-
+	roomIndex := r.GetRoomIndex(conn, roomId)
 	if roomIndex == nil {
-		conn.WriteMessage(websocket.TextMessage, []byte("Room not found."))
-		conn.Close()
+		return nil
 	}
 
 	return r.rooms[*roomIndex]
@@ -70,36 +68,58 @@ func (r *roomService) GetRoom(conn *websocket.Conn, roomId string) *models.Room 
 
 func (r *roomService) JoinAsVoter(conn *websocket.Conn, roomId string) {
 	roomIndex := r.GetRoomIndex(conn, roomId)
-	r.rooms[roomIndex].Voters[conn] = true
+	if roomIndex == nil {
+		return
+	}
+
+	r.Lock()
+	r.rooms[*roomIndex].Voters[conn] = true
+	r.Unlock()
 }
 
 func (r *roomService) JoinAsSpectator(conn *websocket.Conn, roomId string) {
 	roomIndex := r.GetRoomIndex(conn, roomId)
-	r.rooms[roomIndex].Spectators[conn] = true
+	if roomIndex == nil {
+		return
+	}
+
+	r.Lock()
+	r.rooms[*roomIndex].Spectators[conn] = true
+	r.Unlock()
 }
 
 func (r *roomService) Leave(conn *websocket.Conn, roomId string) {
+	var foundIndex int
+	var foundRoom *models.Room
+
 	for index, room := range r.rooms {
 		if room.Id == roomId {
-			for k := range room.Voters {
-				if k == conn {
-					delete(room.Voters, conn)
-					conn.Close()
-					break
-				}
-			}
+			foundIndex = index
+			foundRoom = room
 
-			for k := range room.Spectators {
-				if k == conn {
-					delete(room.Spectators, conn)
-					conn.Close()
-					break
-				}
-			}
+			if room.Voters[conn] {
+				r.Lock()
+				delete(room.Voters, conn)
+				r.Unlock()
 
-			if len(room.Voters) == 0 && len(room.Spectators) == 0 {
-				r.DeleteRoom(room, index)
+				conn.Close()
+
+				break
+			} 
+			
+			if room.Spectators[conn] {
+				r.Lock()
+				delete(room.Spectators, conn)
+				r.Unlock()
+
+				conn.Close()
+
+				break
 			}
 		}
+	}
+
+	if len(foundRoom.Voters) == 0 && len(foundRoom.Spectators) == 0 {
+		r.DeleteRoom(foundRoom, foundIndex)
 	}
 }

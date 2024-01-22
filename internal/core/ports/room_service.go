@@ -8,7 +8,7 @@ import (
 type RoomService interface {
 	CreateRoom(conn *websocket.Conn) string
 	DeleteRoom(room *models.Room, index int)
-	GetRoomIndex(conn *websocket.Conn, roomId string) int
+	GetRoomIndex(conn *websocket.Conn, roomId string) *int
 	GetRoom(conn *websocket.Conn, roomId string) *models.Room
 	JoinAsVoter(conn *websocket.Conn, roomId string)
 	JoinAsSpectator(conn *websocket.Conn, roomId string)

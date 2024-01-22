@@ -22,14 +22,14 @@ func NewHTTPHandler(upgrader ports.HTTPToSocketConnectionUpgrader, roomService p
 }
 
 func (hh *HTTPHandler) SetRoutes(engine *gin.Engine) {
-	engine.GET("/vote/:roomId", func(ctx *gin.Context) {
+	engine.GET("/vote/*roomId", func(ctx *gin.Context) {
 		roomId := ctx.Param("roomId")
 		hh.HandleVoteRequest(ctx.Writer, ctx.Request, roomId)
 	})
 
-	engine.GET("/results/*roomId", func(ctx *gin.Context) {
+	engine.GET("/spectate/*roomId", func(ctx *gin.Context) {
 		roomId := ctx.Param("roomId")
-		hh.HandleResultsRequest(ctx.Writer, ctx.Request, roomId)
+		hh.HandleSpectateRequest(ctx.Writer, ctx.Request, roomId)
 	})
 }
 
@@ -40,10 +40,16 @@ func (hh *HTTPHandler) HandleVoteRequest(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	hh.votingService.HandleVote(conn, roomId)
+	if roomId == "/" {
+		roomId = hh.roomService.CreateRoom(conn)
+	} else {
+		roomId = roomId[1:]
+	}
+
+	go hh.votingService.Vote(conn, roomId)
 }
 
-func (hh *HTTPHandler) HandleResultsRequest(w http.ResponseWriter, r *http.Request, roomId string) {
+func (hh *HTTPHandler) HandleSpectateRequest(w http.ResponseWriter, r *http.Request, roomId string) {
 	conn, err := hh.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// handle
@@ -52,20 +58,9 @@ func (hh *HTTPHandler) HandleResultsRequest(w http.ResponseWriter, r *http.Reque
 
 	if roomId == "/" {
 		roomId = hh.roomService.CreateRoom(conn)
+	} else {
+		roomId = roomId[1:]
 	}
 
-	hh.votingService.SetResultsConnections(conn, roomId)
-
-	for {
-		messageType, message, err := conn.ReadMessage()
-		if err != nil {
-			// handle
-			return
-		}
-
-		if err := conn.WriteMessage(messageType, message); err != nil {
-			// handle
-			return
-		}
-	}
+	go hh.votingService.Spectate(conn, roomId)
 }
