@@ -7,7 +7,8 @@ import (
 
 type Room struct {
 	Id         string
-	Votes      map[int]int
+	TotalVotes int
+	Votes      map[string]int
 	Voters     map[*websocket.Conn]bool
 	Spectators map[*websocket.Conn]bool
 }
@@ -15,7 +16,8 @@ type Room struct {
 func NewRoom() *Room {
 	room := Room{
 		Id:         uuid.NewString(),
-		Votes:      map[int]int{},
+		TotalVotes: 0,
+		Votes:      map[string]int{},
 		Voters:     map[*websocket.Conn]bool{},
 		Spectators: map[*websocket.Conn]bool{},
 	}

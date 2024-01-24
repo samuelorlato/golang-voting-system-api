@@ -1,6 +1,6 @@
 package models
 
 type VoteCount struct {
-	Option int `json:"option"`
-	Count  int `json:"count"`
+	Count               int     `json:"count"`
+	PercentageFromTotal float64 `json:"percentageFromTotal"`
 }

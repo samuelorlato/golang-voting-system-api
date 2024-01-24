@@ -1,5 +1,5 @@
 package models
 
 type Vote struct {
-	Option int `json:"option" validate:"nonzero"`
+	Option string `json:"option" validate:"nonzero"`
 }

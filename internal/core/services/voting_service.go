@@ -21,68 +21,71 @@ func NewVotingService(roomService ports.RoomService) ports.VotingService {
 }
 
 func (vs *votingService) Vote(conn *websocket.Conn, roomId string) {
-	if vs.roomService.GetRoom(conn, roomId) == nil {
-		conn.WriteMessage(websocket.TextMessage, []byte("Room not found."))
-		conn.Close()
-		return
-	}
+	roomIndex := vs.roomService.GetRoomIndex(roomId)
 
-	vs.roomService.JoinAsVoter(conn, roomId)
+	vs.roomService.JoinAsVoter(conn, roomIndex)
 
 	for {
 		var vote models.Vote
 		err := conn.ReadJSON(&vote)
 		if err != nil {
-			vs.roomService.Leave(conn, roomId)
+			conn.WriteMessage(websocket.TextMessage, []byte("Invalid vote: "+err.Error()))
+			vs.roomService.Leave(conn, roomIndex)
 			break
 		}
 
 		if err := validator.Validate(vote); err != nil {
-			conn.WriteMessage(websocket.TextMessage, []byte("Invalid vote, probably invalid json format."))
-		} else {
-			room := vs.roomService.GetRoom(conn, roomId)
-
-			vs.addVote(room, vote)
-			vs.broadcastVoteCountToSpectators(conn, room)
+			conn.WriteMessage(websocket.TextMessage, []byte("Invalid vote: "+err.Error()))
+			vs.roomService.Leave(conn, roomIndex)
+			break
 		}
+
+		room := vs.roomService.GetRoom(roomIndex)
+
+		vs.addVote(room, vote)
+		vs.broadcastVoteCountToSpectators(conn, room, roomIndex)
 	}
 }
 
 func (vs *votingService) addVote(room *models.Room, vote models.Vote) {
 	vs.Lock()
 	room.Votes[vote.Option]++
+	room.TotalVotes++
 	vs.Unlock()
 }
 
-func (vs *votingService) broadcastVoteCountToSpectators(conn *websocket.Conn, room *models.Room) {
+func (vs *votingService) broadcastVoteCountToSpectators(conn *websocket.Conn, room *models.Room, roomIndex *int) {
 	vs.Lock()
 	for spectatorConn := range room.Spectators {
-		for option, count := range room.Votes {
-			voteCount := models.VoteCount{Option: option, Count: count}
+		votesAndTotalVotesMap := map[string]interface{}{}
+		votesAndTotalVotesMap["totalVotes"] = room.TotalVotes
 
-			err := spectatorConn.WriteJSON(voteCount)
-			if err != nil {
-				vs.roomService.Leave(spectatorConn, room.Id)
-				break
-			}
+		votesMap := map[string]models.VoteCount{}
+		for option, count := range room.Votes {
+			voteCount := models.VoteCount{Count: count, PercentageFromTotal: float64(count) / float64(room.TotalVotes)}
+			votesMap[option] = voteCount
+		}
+
+		votesAndTotalVotesMap["separatedVotes"] = votesMap
+
+		err := spectatorConn.WriteJSON(votesAndTotalVotesMap)
+		if err != nil {
+			vs.roomService.Leave(spectatorConn, roomIndex)
+			break
 		}
 	}
 	vs.Unlock()
 }
 
 func (vs *votingService) Spectate(conn *websocket.Conn, roomId string) {
-	if vs.roomService.GetRoom(conn, roomId) == nil {
-		conn.WriteMessage(websocket.TextMessage, []byte("Room not found."))
-		conn.Close()
-		return
-	}
+	roomIndex := vs.roomService.GetRoomIndex(roomId)
 
-	vs.roomService.JoinAsSpectator(conn, roomId)
+	vs.roomService.JoinAsSpectator(conn, roomIndex)
 
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
-			vs.roomService.Leave(conn, roomId)
+			vs.roomService.Leave(conn, roomIndex)
 			break
 		}
 	}
