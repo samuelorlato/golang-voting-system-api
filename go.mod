@@ -1,4 +1,4 @@
-module github.com/samuelorlato/golang-electoral-system-api
+module github.com/samuelorlato/golang-voting-system-api
 
 go 1.21.4
 

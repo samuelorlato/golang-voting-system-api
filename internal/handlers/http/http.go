@@ -3,7 +3,7 @@ package httphandler
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/samuelorlato/golang-electoral-system-api/internal/core/ports"
+	"github.com/samuelorlato/golang-voting-system-api/internal/core/ports"
 )
 
 type HTTPHandler struct {

@@ -2,7 +2,7 @@ package ports
 
 import (
 	"github.com/gorilla/websocket"
-	"github.com/samuelorlato/golang-electoral-system-api/internal/core/models"
+	"github.com/samuelorlato/golang-voting-system-api/internal/core/models"
 )
 
 type RoomService interface {

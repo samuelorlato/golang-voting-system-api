@@ -4,8 +4,8 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"github.com/samuelorlato/golang-electoral-system-api/internal/core/models"
-	"github.com/samuelorlato/golang-electoral-system-api/internal/core/ports"
+	"github.com/samuelorlato/golang-voting-system-api/internal/core/models"
+	"github.com/samuelorlato/golang-voting-system-api/internal/core/ports"
 )
 
 type roomService struct {

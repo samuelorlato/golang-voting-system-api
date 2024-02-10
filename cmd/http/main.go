@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/samuelorlato/golang-electoral-system-api/internal/core/services"
-	httphandler "github.com/samuelorlato/golang-electoral-system-api/internal/handlers/http"
+	"github.com/samuelorlato/golang-voting-system-api/internal/core/services"
+	httphandler "github.com/samuelorlato/golang-voting-system-api/internal/handlers/http"
 )
 
 func main() {
